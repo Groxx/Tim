@@ -2,6 +2,8 @@ package <your package>;
 
 import java.util.Locale;
 import java.util.Stack;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import android.annotation.SuppressLint;
 import android.text.TextUtils;
 
@@ -26,6 +28,7 @@ import android.text.TextUtils;
  */
 public class Tim {
     private static final String DEFAULT_TAG = "Tim";
+    private static final AtomicInteger instanceNum = new AtomicInteger();
 
     private final Stack<TimeData> times = new Stack<TimeData>();
     private final String tag;
@@ -39,7 +42,7 @@ public class Tim {
      * once.
      */
     public Tim(String name) {
-        tag = name;
+        tag = name + " " + instanceNum.incrementAndGet();
         // Add a 'bottom' TimeData, so the stack is never empty, but is never displayed. Simplifies things.
         times.push(new TimeData("<root>", now()));
     }
@@ -206,12 +209,13 @@ public class Tim {
     /**
      * Lazy-initialized shared static version of the logger. Just use capital letters to access it.
      */
-    private static class LazyTim {
+    private static class LazyStaticTim {
         public final static Tim SHARED = new Tim();
     }
 
     /**
-     * Log a message. Displays time since last message was displayed.
+     * Log a message. Displays time since last message was displayed.<br />
+     * Runs on a shared, static instance.
      *
      * @see #log(String) for more details and an instance-specific version.
      * @warning the very-first call to this, if not preceeded by {@link #Begin(String)}, will show elapsed time since
@@ -219,43 +223,118 @@ public class Tim {
      *          and is only useful for showing just how lazy it is, but since this is somewhat interesting it is left.
      */
     public static void Log(String body) {
-        LazyTim.SHARED.log(body);
+        LazyStaticTim.SHARED.log(body);
     }
 
     /**
-     * Begin a timed block with a name.
+     * Begin a timed block with a name.<br />
+     * Runs on a shared, static instance. Be careful of interleaving Begin / End calls! Consider using
+     * {@link #Tbegin(String)}.
      *
      * @see #begin(String) for more details and an instance-specific version.
      */
     public static void Begin(String name) {
-        LazyTim.SHARED.begin(name);
+        LazyStaticTim.SHARED.begin(name);
     }
 
     /**
-     * Begin a timed block with a name, and an additional message to display.
+     * Begin a timed block with a name, and an additional message to display.<br />
+     * Runs on a shared, static instance. Be careful of interleaving Begin / End calls! Consider using
+     * {@link #Tbegin(String, String)}.
      *
      * @see #begin(String, String) for more details and an instance-specific version.
      */
     public static void Begin(String name, String message) {
-        LazyTim.SHARED.begin(name, message);
+        LazyStaticTim.SHARED.begin(name, message);
     }
 
     /**
-     * End any timed block. Use {@link #End(String)} when possible to avoid attribution errors.
+     * End any timed block. Use {@link #End(String)} when possible to avoid attribution errors.<br />
+     * Runs on a shared, static instance. Be careful of interleaving Begin / End calls! Consider using {@link #Tend()}.
      *
      * @see #end() for more details and an instance-specific version.
      */
     public static void End() {
-        LazyTim.SHARED.end();
+        LazyStaticTim.SHARED.end();
     }
 
     /**
-     * End the named timed block. Blocks will be removed until it is found.
+     * End the named timed block. Blocks will be removed until it is found.<br />
+     * Runs on a shared, static instance. Be careful of interleaving Begin / End calls! Consider using
+     * {@link #Tend(String)}.
      *
      * @see #end(String) for more details and an instance-specific version.
      */
     public static void End(String name) {
-        LazyTim.SHARED.end(name);
+        LazyStaticTim.SHARED.end(name);
+    }
+
+    /**
+     * Lazy-initialized thread-local version of the logger. Use T-prefixed methods to access it.
+     */
+    private static class LazyThreadLocalTim {
+        public final static ThreadLocal<Tim> SHARED = new ThreadLocal<Tim>();
+        public static synchronized Tim local() {
+            Tim t = SHARED.get();
+            if (t == null) {
+                t = new Tim();
+                SHARED.set(t);
+            }
+            return t;
+        }
+    }
+
+    /**
+     * Log a message. Displays time since last message was displayed.<br />
+     * Runs on a thread-local instance.
+     *
+     * @see #log(String) for more details and an instance-specific version.
+     * @warning the very-first call to this, if not preceeded by {@link #Begin(String)}, will show elapsed time since
+     *          the lazily-initialized shared Tim-logger was created. This depends entirely on class-loading behavior
+     *          and is only useful for showing just how lazy it is, but since this is somewhat interesting it is left.
+     */
+    public static void Tlog(String body) {
+        LazyThreadLocalTim.local().log(body);
+    }
+
+    /**
+     * Begin a timed block with a name.<br />
+     * Runs on a thread-local instance.
+     *
+     * @see #begin(String) for more details and an instance-specific version.
+     */
+    public static void Tbegin(String name) {
+        LazyThreadLocalTim.local().begin(name);
+    }
+
+    /**
+     * Begin a timed block with a name, and an additional message to display.<br />
+     * Runs on a thread-local instance.
+     *
+     * @see #begin(String, String) for more details and an instance-specific version.
+     */
+    public static void Tbegin(String name, String message) {
+        LazyThreadLocalTim.local().begin(name, message);
+    }
+
+    /**
+     * End any timed block. Use {@link #End(String)} when possible to avoid attribution errors.<br />
+     * Runs on a thread-local instance.
+     *
+     * @see #end() for more details and an instance-specific version.
+     */
+    public static void Tend() {
+        LazyThreadLocalTim.local().end();
+    }
+
+    /**
+     * End the named timed block. Blocks will be removed until it is found.<br />
+     * Runs on a thread-local instance.
+     *
+     * @see #end(String) for more details and an instance-specific version.
+     */
+    public static void Tend(String name) {
+        LazyThreadLocalTim.local().end(name);
     }
 
     /**
